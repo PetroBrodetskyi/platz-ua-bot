@@ -1,22 +1,16 @@
 import TelegramBot from "node-telegram-bot-api";
 import dotenv from "dotenv";
 import start from "./handlers/start.js";
-import LiqPay from "liqpay"; // Підключення LiqPay SDK
+import { createPayPalPayment } from "./handlers/payment.js";
 
 dotenv.config();
 
 const token = process.env.BOT_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
 
-// Ініціалізуємо LiqPay з ключами
-const liqpay = new LiqPay(
-  process.env.LIQPAY_PUBLIC_KEY,
-  process.env.LIQPAY_PRIVATE_KEY
-);
-
 const currentUserState = {};
 
-bot.on("message", (msg) => {
+bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
 
   if (!currentUserState[chatId]) {
@@ -91,7 +85,7 @@ bot.on("message", (msg) => {
         bot.sendMessage(chatId, "Введіть ціну для оголошення:");
       } else if (msg.text === "Скинути") {
         delete currentUserState[chatId];
-        bot.sendMessage(chatId, "Ваше оголошення було скинуте.");
+        bot.sendMessage(chatId, "Ваше оголошення було скинуто.");
       } else {
         currentUserState[chatId].location = msg.text;
         currentUserState[chatId].step = "photo";
@@ -108,7 +102,7 @@ bot.on("message", (msg) => {
         bot.sendMessage(chatId, "Введіть локацію для оголошення:");
       } else if (msg.text === "Скинути") {
         delete currentUserState[chatId];
-        bot.sendMessage(chatId, "Ваше оголошення було скинуте.");
+        bot.sendMessage(chatId, "Ваше оголошення було скинуто.");
       } else if (msg.photo && msg.photo.length > 0) {
         const photo = msg.photo[msg.photo.length - 1].file_id;
         const { adText, category, price, location } = currentUserState[chatId];
@@ -123,7 +117,7 @@ bot.on("message", (msg) => {
           "Щоб завершити, будь ласка, виберіть метод оплати:",
           {
             reply_markup: {
-              keyboard: [["LiqPay"], ["PayPal"], ["Повернутися назад"]],
+              keyboard: [["PayPal"], ["Повернутися назад"]],
               resize_keyboard: true,
               one_time_keyboard: true,
             },
@@ -138,29 +132,17 @@ bot.on("message", (msg) => {
       break;
 
     case "payment":
-      if (msg.text === "LiqPay") {
-        bot.sendMessage(chatId, "Ви обрали LiqPay. Створюємо платіж...");
-
+      if (msg.text === "PayPal") {
         const { price, adText } = currentUserState[chatId];
+        bot.sendMessage(chatId, "Ви обрали PayPal. Обробка платежу...");
 
-        const params = {
-          action: "pay",
-          amount: price,
-          currency: "EUR",
-          description: `Оплата за оголошення: ${adText}`,
-          order_id: Math.floor(1 + Math.random() * 1000000),
-          version: 3,
-          result_url: "https://your-redirect-url.com",
-        };
-
-        const paymentLink = liqpay.cnb_link(params);
-
+        // Використовуйте створену кнопку PayPal
+        const paymentLink = `https://www.paypal.com/ncp/payment/Y3N7M4GK5L9H4`;
         bot.sendMessage(
           chatId,
-          `Оплатіть ваше оголошення за посиланням: ${paymentLink}`
+          `Оплатіть ваше оголошення за посиланням: [Jetzt bezahlen](${paymentLink})`,
+          { parse_mode: "Markdown" } // Увімкніть режим розмітки для посилання
         );
-      } else if (msg.text === "PayPal") {
-        bot.sendMessage(chatId, "Ви обрали PayPal. Обробка платежу...");
       } else if (msg.text === "Повернутися назад") {
         delete currentUserState[chatId];
         bot.sendMessage(chatId, "Повернення до основного меню.");
